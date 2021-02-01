@@ -195,11 +195,28 @@ const getMeta = (key) => {
 }
 
 /**
+ * Switch SVG figures to dark mode.
+ */
+const darkMode = () => {
+  Array.from(document.querySelectorAll('img'))
+    .forEach(node => {
+      const img = node.getAttribute('img')
+      if (img.includes('figures/') && img.endsWith('.svg')) {
+        const darkened = img.replace('.svg', '-dark.svg')
+        node.setAttribute('img', darkened)
+      }
+    })
+}
+
+/**
  * Perform all in-page fixes.
  * @param {Boolean} full Do everything?
  */
 const fixPage = (full) => {
   enableDropdowns()
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    darkMode()
+  }
   if (full) {
     const slug = getMeta('slug')
     const toRoot = getMeta('toRoot')
