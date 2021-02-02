@@ -12,14 +12,16 @@ import MarkdownAnchor from 'markdown-it-anchor'
 import MarkdownContainer from 'markdown-it-container'
 import matter from 'gray-matter'
 import path from 'path'
+import rimraf from 'rimraf'
 
 import {
+  addCommonArguments,
+  buildLinks,
+  buildOptions,
+  createFilePaths,
   dirname,
-  ensureOutputDir,
-  fullOptions,
   getGlossaryReferences,
-  loadNumbering,
-  loadYaml
+  yamlLoad
 } from './utils.js'
 
 /**
@@ -38,19 +40,25 @@ const HEADER = "<%- include('/inc/page-head.html') %>"
 const FOOTER = "<%- include('/inc/page-foot.html') %>"
 
 /**
+ * Width of tables showing terms defined at the start of a chapter.
+ */
+const ITEM_TABLE_WIDTH = 3
+
+/**
  * Main driver.
  */
 const main = () => {
-  const options = fullOptions(getOptions())
-  console.error('OPTIONS', options)
-  options.homeDir = dirname(import.meta.url).replace('/bin', '')
-  const glossary = loadYaml(options.glossary)
-  const numbering = loadNumbering(options.numbering)
-  addFileInfo(options)
-  const { page, input } = loadFile(options)
-  const output = translate(options, glossary, numbering, page, input)
-  ensureOutputDir(options.output)
-  fs.writeFileSync(options.output, output, 'utf-8')
+  const options = getOptions()
+  const glossary = buildGlossary(options)
+  buildLinks(options)
+  const allFiles = buildFileInfo(options)
+  const numbering = buildNumbering(options)
+  loadFiles(allFiles)
+  rimraf.sync(options.html)
+  allFiles.forEach(
+    fileInfo => translate(options, fileInfo, glossary, numbering)
+  )
+  finalize(options)
 }
 
 /**
@@ -59,60 +67,72 @@ const main = () => {
  */
 const getOptions = () => {
   const parser = new argparse.ArgumentParser()
-  parser.add_argument('--config', { nargs: '+' })
-  parser.add_argument('--input')
-  parser.add_argument('--output')
-  parser.add_argument('--links')
-  parser.add_argument('--numbering', { nargs: '+' })
-  parser.add_argument('--glossary')
-  parser.add_argument('--root')
-  return parser.parse_args()
+  addCommonArguments(parser, '--gloss', '--links')
+  parser.add_argument('--replaceDir', { action: 'store_true' })
+  const fromArgs = parser.parse_args()
+  fromArgs.homeDir = dirname(import.meta.url).replace('/bin', '')
+  return buildOptions(fromArgs)
 }
 
 /**
- * Add information about files to records.
+ * Build a glossary for filling in words used.
+ * @param {Object} options Options.
+ * @returns {Object} Glossary keys mapped to strings.
+ */
+const buildGlossary = (options) => {
+  const text = fs.readFileSync(options.gloss, 'utf-8')
+  const pat = /<dt\s+id="(.+?)"\s+class="glossary">(.+?)<\/dt>/g
+  const matches = [...text.matchAll(pat)]
+  const result = {}
+  matches.forEach(m => {
+    result[m[1]] = m[2]
+  })
+  return result
+}
+
+/**
+ * Extract files from options and decorate information records.
  * @param {Object} options Options.
  * @returns {Array<Object>} File information.
  */
-const addFileInfo = (options) => {
+const buildFileInfo = (options) => {
+  const allFiles = createFilePaths(options)
   const pages = [...options.chapters, ...options.appendices]
   pages.forEach((fileInfo, i) => {
     fileInfo.previous = (i > 0) ? pages[i - 1] : null
     fileInfo.next = (i < pages.length - 1) ? pages[i + 1] : null
   })
+  return allFiles
 }
 
 /**
- * Load a files to be translated.
- * @param {Object} options Options.
- * @returns {object + string} Page data plus text with headers.
+ * Load all files to be translated (so that cross-references can be built).
+ * @param {Object} allFiles All files records.
  */
-const loadFile = (options) => {
-  const { data, content } = matter(fs.readFileSync(options.input, 'utf-8'))
-  return {
-    page: data,
-    input: `${HEADER}\n${content}\n${FOOTER}`
-  }
+const loadFiles = (allFiles) => {
+  allFiles.forEach((fileInfo, i) => {
+    const { data, content } = matter(fs.readFileSync(fileInfo.source, 'utf-8'))
+    Object.assign(fileInfo, data)
+    fileInfo.content = `${HEADER}\n${content}\n${FOOTER}`
+  })
 }
 
 /**
- * Translate and save file.
- * @param {Object} options Site options.
- * @param {Array<Object>} glossary Full glossary.
- * @param {Object} numbering Numbering lookup.
- * @param {Object} page Page data.
- * @param {string} text Raw text (with headers).
- * @returns {string} Translated text.
+ * Translate and save each file.
+ * @param {Object} options Program options.
+ * @param {Object} fileInfo Information about file.
+ * @param {Object} glossary Keys and terms.
+ * @param {Object} numbering Map slugs to numbers/letters.
  */
-const translate = (options, glossary, numbering, page, text) => {
-  // Get the glossary entries that are referenced in this page.
-  const glossRefs = getGlossaryReferences(text)
-
+const translate = (options, fileInfo, glossary, numbering) => {
   // Context contains variables required by EJS.
   const context = {
     root: options.root,
-    filename: options.input
+    filename: fileInfo.source
   }
+
+  // Get the glossary entries that are referenced in this page.
+  const glossRefs = getGlossaryReferences(fileInfo.content)
 
   // Construct a Markdown-to-HTML renderer (since we need to process Markdown
   // inclusions to HTML when rendering tables).
@@ -127,12 +147,12 @@ const translate = (options, glossary, numbering, page, text) => {
   // Settings contains "local" variables for rendering.
   const settings = {
     ...context,
-    mdi,
     site: options,
-    page: page,
-    toRoot: '..',
+    page: fileInfo,
+    toRoot: toRoot(options.html, fileInfo.html),
     glossary,
     glossRefs,
+    mdi,
     numbering,
     // Since inclusions may contain inclusions, we need to provide the rendering
     // function to the renderer in the settings.
@@ -151,12 +171,15 @@ const translate = (options, glossary, numbering, page, text) => {
   }
 
   // Translate the page.
-  const linksText = fs.readFileSync(options.links, 'utf-8')
-  const fullText = `${text}\n\n${linksText}`
-  const translated = settings._render(fullText)
-  return mdi
-    .render(translated)
-    .replace(new RegExp(options.homeDir, 'g'), STANDARD_DIR)
+  const translated = settings._render(`${fileInfo.content}\n\n${options.linksText}`)
+  let html = mdi.render(translated)
+  if (options.replaceDir) {
+    html = html.replace(new RegExp(options.homeDir, 'g'), STANDARD_DIR)
+  }
+
+  // Save result.
+  ensureOutputDir(fileInfo.html)
+  fs.writeFileSync(fileInfo.html, html, 'utf-8')
 }
 
 /**
@@ -337,6 +360,100 @@ const slugify = (text) => {
     .toLowerCase()
     .replace(/[^ \w]/g, '')
     .replace(/\s+/g, '-'))
+}
+
+/**
+ * Copy static files.
+ * @param {Object} options Options.
+ */
+const finalize = (options) => {
+  // Copy source files.
+  const sourceFiles = [...options.chapters, ...options.appendices]
+    .map(entry => entry.slug)
+    .map(slug => options.sourceFiles.map(pattern => `${slug}/**/${pattern}`))
+    .flat()
+    .map(pattern => path.join(options.root, pattern))
+    .map(pattern => glob.sync(pattern))
+    .flat()
+  copyFiles(options, sourceFiles)
+
+  // Save numbering for LaTeX.
+  const numbering = buildNumbering(options)
+  fs.writeFileSync(path.join(options.html, 'numbering.js'),
+    JSON.stringify(numbering, null, 2), 'utf-8')
+}
+
+/**
+ * Copy a set of files, making directories as needed.
+ * @param {Object} options Options.
+ * @param {Array<string>} filenames What to copy.
+ */
+const copyFiles = (options, filenames) => {
+  filenames.forEach(source => {
+    const dest = makeOutputPath(options.html, source)
+    ensureOutputDir(dest)
+    fs.copyFileSync(source, dest)
+  })
+}
+
+/**
+ * Build numbering lookup table for chapters and appendices.
+ * @param {Object} options Options.
+ * @returns {Object} slug-to-number-or-letter lookup table.
+ */
+const buildNumbering = (options) => {
+  const result = {}
+  const numbered = [...options.extras, ...options.chapters]
+  numbered.forEach((fileInfo, i) => {
+    result[fileInfo.slug] = `${i + 1}`
+  })
+  const start = 'A'.charCodeAt(0)
+  options.appendices.forEach((fileInfo, i) => {
+    result[fileInfo.slug] = String.fromCharCode(start + i)
+  })
+  return result
+}
+
+/**
+ * Construct output filename.
+ * @param {string} output Output directory.
+ * @param {string} source Source file path.
+ * @param {Object} suffixes Lookup table for suffix substitution.
+ * @returns {string} Output file path.
+ */
+const makeOutputPath = (output, source, suffixes = {}) => {
+  let dest = path.join(output, source)
+  const ext = path.extname(dest)
+  if (ext in suffixes) {
+    dest = dest.slice(0, dest.lastIndexOf(ext)) + suffixes[ext]
+  }
+  return dest
+}
+
+/**
+ * Ensure output directory exists.
+ * @param {string} outputPath File path.
+ */
+const ensureOutputDir = (outputPath) => {
+  const dirName = path.dirname(outputPath)
+  fs.mkdirSync(dirName, { recursive: true })
+}
+
+/**
+ * Calculate the relative root path.
+ * @param {string} rootDir Path to root directory.
+ * @param {string} filePath Path to file.
+ * @returns {string} Path from file to root directory.
+ */
+const toRoot = (rootDir, filePath) => {
+  const path = filePath
+    .replace(rootDir, '')
+    .split('/')
+    .filter(field => field !== '')
+    .slice(1)
+    .map(field => '..')
+    .join('/')
+  return (path === '') ? '.' : path
 }
 
 // Run program.

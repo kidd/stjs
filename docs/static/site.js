@@ -198,6 +198,7 @@ const getMeta = (key) => {
  * Switch SVG figures to dark mode.
  */
 const darkMode = () => {
+  return // do not enable dark mode yet
   Array.from(document.querySelectorAll('img'))
     .forEach(node => {
       const img = node.getAttribute('img')

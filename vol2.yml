@@ -1,48 +1,11 @@
-title:
-  - "Software Tools in JavaScript"
-  - "Volume 2: Applications"
-cover: "vol2-400.jpg"
-siteDir: "docs/vol2"
+subtitle: "Volume 2: Applications"
+cover: "static/vol2-400.jpg"
 authors:
   - id: gvwilson
     name: "Greg Wilson"
-    img: gvwilson.png
-
-extras:
-  - slug: "vol2"
-    source: "vol2-intro/index.md"
-    html: "index.html"
+    img: "static/gvwilson.png"
 
 chapters:
   - slug: "http-server"
     title: "HTTP Server"
     lede: "Handling requests for data"
-
-appendices:
-  - slug: "bib"
-    source: "bib.md"
-    title: "Bibliography"
-    latexSkipChapter: true
-
-  - slug: "license"
-    source: "LICENSE.md"
-    latexBefore: "\\appendix"
-
-  - slug: "conduct"
-    source: "CONDUCT.md"
-
-  - slug: "contributing"
-    source: "CONTRIBUTING.md"
-  
-  - slug: "gloss"
-    source: "vol2-gloss.md"
-    title: "Glossary"
-    html: "gloss/index.html"
-
-  - slug: "links"
-    source: "links.md"
-    title: "Links"
-
-  - slug: "authors"
-    source: "authors.md"
-    title: "Authors"

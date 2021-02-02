@@ -9,12 +9,8 @@ import request from 'request'
 import yaml from 'js-yaml'
 
 import {
-  addCommonArguments,
-  buildOptions,
-  createFilePaths,
-  getAllSources,
   getGlossaryReferences,
-  yamlLoad
+  loadYaml
 } from './utils.js'
 
 /**
@@ -44,7 +40,6 @@ const FOOTER = `
  */
 const main = () => {
   const options = getOptions()
-  createFilePaths(options)
   download(options, GLOSARIO_URL).then(glosario => {
     const local = getGlossary(options)
     const merged = mergeGlossaries(glosario, local)
@@ -65,10 +60,11 @@ const main = () => {
  */
 const getOptions = () => {
   const parser = new argparse.ArgumentParser()
-  addCommonArguments(parser, '--input', '--output')
+  parser.add_argument('--input')
+  parser.add_argument('--output')
   parser.add_argument('--glosario', { action: 'store_true' })
-  const fromArgs = parser.parse_args()
-  return buildOptions(fromArgs)
+  parser.add_argument('--files', { nargs: '+' })
+  return parser.parse_args()
 }
 
 /**
@@ -77,7 +73,7 @@ const getOptions = () => {
  * @returns {Object} All entries keyed by slug.
  */
 const getGlossary = (options) => {
-  return yamlLoad(options.input)
+  return loadYaml(options.input)
 }
 
 /**
@@ -108,7 +104,7 @@ const mergeGlossaries = (...glossaries) => {
  */
 const getRequired = (options, gloss) => {
   const pending = new Set(
-    getAllSources(options).map(filename => {
+    options.files.map(filename => {
       const text = fs.readFileSync(filename, 'utf-8')
       return getGlossaryReferences(text)
     }).flat()

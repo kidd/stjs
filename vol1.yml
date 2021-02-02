@@ -1,19 +1,15 @@
-title:
-  - "Software Tools in JavaScript"
-  - "Volume 1: Tools"
-cover: "vol1-400.jpg"
-siteDir: "docs/vol1"
+subtitle: "Volume 1: Tools"
+cover: "static/vol1-400.jpg"
 authors:
   - id: gvwilson
     name: "Greg Wilson"
-    img: gvwilson.png
-
-extras:
-  - slug: "vol1"
-    source: "vol1-intro/index.md"
-    html: "index.html"
+    img: "static/gvwilson.png"
 
 chapters:
+  - slug: "vol1-intro"
+    title: "Introduction"
+    lede: "Who you are and where we're going"
+
   - slug: "systems-programming"
     title: "Systems Programming"
     lede: "Using callbacks to manipulate files and directories"
@@ -499,39 +495,6 @@ chapters:
       - slug: "x-json-to-assembler"
         title: ""
 
-  - slug: "conclusion"
-    source: "vol1-conclusion/index.md"
-    title: "Conclusion"
+  - slug: "vol1-finale"
+    title: "Finale"
     lede: "Where we have been and where you could go next"
-
-appendices:
-  - slug: "bib"
-    source: "bib.md"
-    title: "Bibliography"
-    latexSkipChapter: true
-
-  - slug: "license"
-    source: "LICENSE.md"
-    latexBefore: "\\appendix"
-
-  - slug: "conduct"
-    source: "CONDUCT.md"
-
-  - slug: "contributing"
-    source: "CONTRIBUTING.md"
-  
-  - slug: "cognition"
-    title: "Cognition"
-
-  - slug: "gloss"
-    source: "vol1-gloss.md"
-    title: "Glossary"
-    html: "gloss/index.html"
-
-  - slug: "links"
-    source: "links.md"
-    title: "Links"
-
-  - slug: "authors"
-    source: "authors.md"
-    title: "Authors"

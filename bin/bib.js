@@ -6,7 +6,7 @@ import argparse from 'argparse'
 import assert from 'assert'
 import fs from 'fs'
 
-import { yamlLoad } from './utils.js'
+import { loadYaml } from './utils.js'
 
 /**
  * Top of page.
@@ -30,7 +30,7 @@ const FOOTER = `
  */
 const main = () => {
   const options = getOptions()
-  const data = yamlLoad(options.input)
+  const data = loadYaml(options.input)
   const text = makeBib(data)
   fs.writeFileSync(options.output, text, 'utf-8')
 }
@@ -56,6 +56,7 @@ const getOptions = () => {
 /**
  * Convert YAML bibliography into HTML.
  * @param {Array<Object>} data YAML information.
+ * @returns {string} Text of bibliography as Markdown.
  */
 const makeBib = (data) => {
   const entries = data.map(entry => {
